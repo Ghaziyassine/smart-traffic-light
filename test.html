@@ -1,36 +1,3 @@
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
-// LED Pin definitions
-const uint8_t LEDS[] = { D0, D2, D3, D5, D6, D7 };  // All LED pins in order
-enum LED_INDEX { RED1 = 0,
-                 ORANGE1 = 1,
-                 GREEN1 = 2,
-                 RED2 = 3,
-                 ORANGE2 = 4,
-                 GREEN2 = 5 };
-
-// Timing constants
-const unsigned long STATE_TIMES[] = { 6000, 2000, 6000, 2000 };  // Duration for each state
-unsigned long previousMillis = 0;
-unsigned long currentInterval = STATE_TIMES[0];
-
-// State management
-enum TrafficState { STATE1 = 1,
-                    STATE2,
-                    STATE3,
-                    STATE4 };
-volatile TrafficState currentState = STATE1;
-volatile bool manualOverride = false;
-
-// Network credentials
-const char* ssid = "yassine";
-const char* password = "wifi2020";
-
-// Web server instance
-ESP8266WebServer server(80);
-
-// HTML content stored in program memory
-const char MAIN_page[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html>
 <head>
@@ -178,13 +145,7 @@ const char MAIN_page[] PROGMEM = R"=====(
         .status.inactive {
             background: var(--danger);
         }
- .reset-button {
-        background: linear-gradient(145deg, #ff4b4b, #f44336);
-    }
 
-    .reset-button:hover {
-        box-shadow: 0 5px 15px rgba(244,67,54,0.4);
-    }
         @media (max-width: 1024px) {
             .dashboard {
                 grid-template-columns: 1fr;
@@ -254,8 +215,6 @@ const char MAIN_page[] PROGMEM = R"=====(
                     <button class="state-btn" onclick="changeState(3)">State 3</button>
                     <button class="state-btn" onclick="changeState(4)">State 4</button>
                 </div>
-              <button class="reset-button" onclick="location.href='/'">Reset to Auto Cycle</button>
-
             </div>
         </div>
 
@@ -379,88 +338,3 @@ const char MAIN_page[] PROGMEM = R"=====(
     </script>
 </body>
 </html>
-)=====";
-
-void setup() {
-  Serial.begin(115200);
-
-  // Initialize all LED pins
-  for (uint8_t pin : LEDS) {
-    pinMode(pin, OUTPUT);
-    digitalWrite(pin, LOW);
-  }
-
-  // Connect to WiFi
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.printf("\nConnected to WiFi. IP: %s\n", WiFi.localIP().toString().c_str());
-
-  // Setup server routes
-  server.on("/", handleRoot);
-  for (int i = 1; i <= 4; i++) {
-    server.on("/state" + String(i), [i]() {
-      changeState(static_cast<TrafficState>(i));
-    });
-  }
-
-  server.begin();
-}
-
-void loop() {
-  server.handleClient();
-  if (!manualOverride) {
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= currentInterval) {
-      previousMillis = currentMillis;
-      nextState();
-    }
-  }
-}
-
-void handleRoot() {
-  server.send(200, "text/html", FPSTR(MAIN_page));
-  manualOverride = false;
-}
-
-void changeState(TrafficState state) {
-  currentState = state;
-  manualOverride = true;
-  updateTrafficLights();
-  server.send(200, "text/plain", "State changed to " + String(state));
-}
-
-void nextState() {
-  currentState = static_cast<TrafficState>(currentState % 4 + 1);
-  currentInterval = STATE_TIMES[currentState - 1];
-  updateTrafficLights();
-}
-
-void updateTrafficLights() {
-  // Reset all LEDs
-  for (uint8_t pin : LEDS) {
-    digitalWrite(pin, LOW);
-  }
-
-  // Set active LEDs based on state
-  switch (currentState) {
-    case STATE1:
-      digitalWrite(LEDS[RED1], HIGH);
-      digitalWrite(LEDS[GREEN2], HIGH);
-      break;
-    case STATE2:
-      digitalWrite(LEDS[RED1], HIGH);
-      digitalWrite(LEDS[ORANGE2], HIGH);
-      break;
-    case STATE3:
-      digitalWrite(LEDS[GREEN1], HIGH);
-      digitalWrite(LEDS[RED2], HIGH);
-      break;
-    case STATE4:
-      digitalWrite(LEDS[ORANGE1], HIGH);
-      digitalWrite(LEDS[RED2], HIGH);
-      break;
-  }
-}
