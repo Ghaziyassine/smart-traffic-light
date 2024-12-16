@@ -2,3 +2,5 @@ ultralytics>=8.0.0
 opencv-python>=4.6.0
 numpy>=1.22.0
 torch>=2.0.0
+Flask>=2.0.0
+Flask-CORS>=3.1.0
